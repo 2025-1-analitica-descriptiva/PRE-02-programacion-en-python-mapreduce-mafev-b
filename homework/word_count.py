@@ -6,6 +6,7 @@ import fileinput
 import glob
 import os.path
 import time
+import string
 from itertools import groupby
 
 
@@ -19,6 +20,22 @@ from itertools import groupby
 #
 def copy_raw_files_to_input_folder(n):
     """Funcion copy_files"""
+    if not os.path.exists("files/input"): # Verifica si la carpeta files/input existe
+        os.makedirs("files/input") # Si no existe, la crea
+
+    for file in glob.glob("files/raw/*"): # Busca todos los archivos en la carpeta files/raw
+        for i in range(1,n+1): # Genera n copias de cada archivo
+            # Copia el archivo original en la carpeta files/input con el sufijo _i
+            with open (file, "r", encoding="utf-8") as f: 
+                with open(
+                    f"files/input/{os.path.basename(file).split('.')[0]}_{i}.txt", 
+                      "w",
+                      encoding="utf-8",
+                      ) as f2: # Abre el nuevo archivo en modo escritura
+                    # Abre el archivo original en modo lectura
+                        f2.write(f.read()) # Escribe el contenido del archivo original en el nuevo archivo
+
+        
 
 
 #
@@ -39,7 +56,12 @@ def copy_raw_files_to_input_folder(n):
 def load_input(input_directory):
     """Funcion load_input"""
 
-
+    sequence = []
+    files = glob.glob(f"{input_directory}/*")
+    with fileinput.input(files=files) as f:
+        for line in f:
+            sequence.append((fileinput.filename(), line))
+    return sequence
 #
 # Escriba la función line_preprocessing que recibe una lista de tuplas de la
 # función anterior y retorna una lista de tuplas (clave, valor). Esta función
@@ -47,7 +69,12 @@ def load_input(input_directory):
 #
 def line_preprocessing(sequence):
     """Line Preprocessing"""
-
+    
+    sequence = [
+        (key,value.translate(str.maketrans("", "", string.punctuation)).lower())
+        for key, value in sequence
+    ] # Elimina los signos de puntuacion y convierte a minusculas
+    return sequence
 
 #
 # Escriba una función llamada maper que recibe una lista de tuplas de la
@@ -63,7 +90,9 @@ def line_preprocessing(sequence):
 #
 def mapper(sequence):
     """Mapper"""
-
+    return [
+        (word, 1) for _, value in sequence for word in value.split()
+    ] # Separa las palabras y asigna el valor 1 a cada una de ellas
 
 #
 # Escriba la función shuffle_and_sort que recibe la lista de tuplas entregada
@@ -78,6 +107,8 @@ def mapper(sequence):
 #
 def shuffle_and_sort(sequence):
     """Shuffle and Sort"""
+    sequence.sort(key=lambda x: x[0]) # Ordena la lista por la clave
+    return sequence # Retorna la lista ordenada
 
 
 #
@@ -88,14 +119,27 @@ def shuffle_and_sort(sequence):
 #
 def reducer(sequence):
     """Reducer"""
+    sequence = [
+        (key, sum(1 for _ in group)) for key, group in groupby(sequence, key=lambda x: x[0])
+    ] # Agrupa los elementos por clave y suma los valores asociados a cada clave
+    return sequence # Retorna la lista reducida
+
 
 
 #
 # Escriba la función create_ouptput_directory que recibe un nombre de
 # directorio y lo crea. Si el directorio existe, lo borra
 #
-def create_ouptput_directory(output_directory):
+def create_output_directory(output_directory):
     """Create Output Directory"""
+    if os.path.exists(output_directory): # Verifica si el directorio existe
+        for file in glob.glob(f"{output_directory}/*"): # Busca todos los archivos en el directorio
+            os.remove(file) # Elimina los archivos en el directorio
+    else:
+        os.makedirs(output_directory) # Si no existe, lo crea
+    
+    return output_directory # Retorna el directorio creado
+
 
 
 #
@@ -108,6 +152,13 @@ def create_ouptput_directory(output_directory):
 #
 def save_output(output_directory, sequence):
     """Save Output"""
+    # Crea el archivo part-00000 en el directorio de salida
+    with open(f"{output_directory}/part-00000", "w", encoding="utf-8") as f:
+        for key, value in sequence: # Itera sobre la lista de tuplas
+            f.write(f"{key}\t{value}\n") # Escribe la clave y el valor separados por un tabulador
+    
+
+
 
 
 #
@@ -116,14 +167,28 @@ def save_output(output_directory, sequence):
 #
 def create_marker(output_directory):
     """Create Marker"""
+    with open(f"{output_directory}/_SUCCESS", "w", encoding="utf-8") as f:
+        f.write("") # Crea el archivo _SUCCESS vacio
+    return output_directory # Retorna el directorio creado
 
 
 #
 # Escriba la función job, la cual orquesta las funciones anteriores.
 #
+from pprint import pprint
 def run_job(input_directory, output_directory):
     """Job"""
+    sequence = load_input(input_directory) # Carga los archivos de texto
+    sequence = line_preprocessing(sequence) # Preprocesa los archivos de texto
+    sequence = mapper(sequence) # Mapea los archivos de texto
+    sequence = shuffle_and_sort(sequence) # Ordena los archivos de texto
+    sequence = reducer(sequence) # Reduce los archivos de texto
+    create_output_directory(output_directory) # Crea el directorio de salida
+    save_output(output_directory, sequence) # Guarda el resultado en el directorio de salida
+    create_marker(output_directory) # Crea el archivo _SUCCESS
 
+
+    pprint(sequence[:5]) # Muestra los primeros 5 elementos de la lista
 
 if __name__ == "__main__":
 
